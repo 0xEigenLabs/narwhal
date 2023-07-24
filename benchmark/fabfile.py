@@ -33,6 +33,7 @@ def local(ctx, debug=False, runClients=1):
         ret = LocalBench(bench_params, node_params).run(debug, runClients)
         if runClients:
             print(ret.result())
+        print("{} nodes have been enabled".format(bench_params['nodes']))
     except BenchError as e:
         Print.error(e)
 
