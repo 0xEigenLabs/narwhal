@@ -35,7 +35,7 @@ class LocalBench:
         except subprocess.SubprocessError as e:
             raise BenchError('Failed to kill testbed', e)
 
-    def run(self, debug=False):
+    def run(self, debug=False, run_clients=1):
         assert isinstance(debug, bool)
         Print.heading('Starting local benchmark')
 
@@ -76,17 +76,20 @@ class LocalBench:
             # 5. Run the clients (they will wait for the nodes to be ready).
             workers_addresses = committee.workers_addresses(self.faults)
             rate_share = ceil(rate / committee.workers())
-            # for i, addresses in enumerate(workers_addresses):
-            #     for (id, address) in addresses:
-            #         cmd = CommandMaker.run_client(
-            #             address,
-            #             self.tx_size,
-            #             rate_share,
-            #             [x for y in workers_addresses for _, x in y]
-            #         )
-            #         log_file = PathMaker.client_log_file(i, id)
-            #         self._background_run(cmd, log_file)
-
+            if run_clients:
+                workers_addresses = committee.workers_addresses(self.faults)
+                rate_share = ceil(rate / committee.workers())
+                for i, addresses in enumerate(workers_addresses):
+                    for (id, address) in addresses:
+                        cmd = CommandMaker.run_client(
+                            address,
+                            self.tx_size,
+                            rate_share,
+                            [x for y in workers_addresses for _, x in y]
+                        )
+                        log_file = PathMaker.client_log_file(i, id)
+                        self._background_run(cmd, log_file)
+            
             # 6. Run the primaries (except the faulty ones).
             for i, address in enumerate(committee.primary_addresses(self.faults)):
                 cmd = CommandMaker.run_primary(
@@ -116,11 +119,11 @@ class LocalBench:
             # 8. Wait for all transactions to be processed.
             Print.info(f'Running benchmark ({self.duration} sec)...')
             sleep(self.duration)
-            # self._kill_nodes()
-
-            # 9. Parse logs and return the parser.
-            # Print.info('Parsing logs...')
-            # return LogParser.process(PathMaker.logs_path(), faults=self.faults)
+            if run_clients:
+                self._kill_nodes()
+                # 9. Parse logs and return the parser.
+                Print.info('Parsing logs...')
+                return LogParser.process(PathMaker.logs_path(), faults=self.faults)
 
         except (subprocess.SubprocessError, ParseError) as e:
             self._kill_nodes()
