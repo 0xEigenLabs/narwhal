@@ -139,9 +139,8 @@ async fn analyze(mut store: Store, mut rx_output: Receiver<Certificate>) {
         // NOTE: Here goes the application logic.
         log::info!("id: {}", _certificate.header.id);
         log::info!("header: {},  payload sz {}", _certificate.header, _certificate.header.payload.len());
-        let keys = _certificate.header.payload.keys();
-        for x in keys {
-            log::info!("keys: {}", x);
+        for x in _certificate.header.payload.keys() {
+            log::info!("keys: {:?} {:?}", x, x.to_vec());
             let value = store.read(x.to_vec()).await;
             log::info!("value : {:?}", value);
             if value.is_err() {
