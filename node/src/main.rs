@@ -9,7 +9,7 @@ use env_logger::Env;
 use primary::{Certificate, Primary};
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver};
-use worker::Worker;
+use worker::{Worker, WorkerMessage};
 
 /// The default channel capacity.
 pub const CHANNEL_CAPACITY: usize = 1_000;
@@ -127,15 +127,62 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     }
 
     // Analyze the consensus' output.
-    analyze(rx_output).await;
-
+    analyze(rx_output, store_path).await;
     // If this expression is reached, the program ends and all other tasks terminate.
     unreachable!();
 }
 
 /// Receives an ordered list of certificates and apply any application-specific logic.
-async fn analyze(mut rx_output: Receiver<Certificate>) {
+async fn analyze(mut rx_output: Receiver<Certificate>, store_path: &str) {
     while let Some(_certificate) = rx_output.recv().await {
         // NOTE: Here goes the application logic.
+        let opts = rocksdb::Options::default();
+        let secondary_path = "_primary_rocksdb_secondary_secondary";
+        let store_path = format!("{}-0", store_path);
+        let final_path = format!("{}-final", store_path);
+        let secondary = rocksdb::DB::open_as_secondary(&opts, store_path.as_str(), &secondary_path).unwrap();
+
+        // index => tx
+        let final_db = rocksdb::DB::open_default(final_path).unwrap();
+        let bindex = b"latest_index";
+        let mut bvalue: u64 = match final_db.get(bindex) {
+            Ok(x) => {
+                match x {
+                    Some(y) => {
+                        let mut vy = [0u8; 8];
+                        vy.copy_from_slice(&y);
+                        u64::from_le_bytes(vy)
+                    },
+                    _ => 0,
+                }
+            },
+            _ => 0,
+        };
+
+        for x in _certificate.header.payload.keys() {
+            let value = secondary.get(x.to_vec());
+            if value.is_err() {
+                log::info!("rocksdb::get error: {:?} {:?}", x, value);
+                continue;
+            }
+            let value = value.unwrap();
+            if value.is_none() {
+                log::info!("rocksdb::get value is null: {:?}", x);
+                continue;
+            }
+            let serialized = value.unwrap();
+            match bincode::deserialize(&serialized) {
+                Ok(WorkerMessage::Batch(batch)) => {
+                    batch.into_iter().for_each(|tx| {
+                        bvalue += 1;
+                        log::info!("batch tx: {:?}, index: {}", tx, bvalue);
+                        let index = bvalue.to_le_bytes();
+                        final_db.put(index, tx).unwrap();
+                        final_db.put(bindex, index).unwrap();
+                    })
+                }
+                _ => log::warn!("Serialization error: {:?}", serialized),
+            }
+        }
     }
 }

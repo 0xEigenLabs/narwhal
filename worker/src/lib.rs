@@ -12,3 +12,4 @@ mod worker;
 mod common;
 
 pub use crate::worker::Worker;
+pub use crate::worker::WorkerMessage;
