@@ -101,7 +101,7 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
                 keypair,
                 committee.clone(),
                 parameters.clone(),
-                store.clone(),
+                store,
                 /* tx_consensus */ tx_new_certificates,
                 /* rx_consensus */ rx_feedback,
             );
@@ -121,28 +121,32 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
                 .unwrap()
                 .parse::<WorkerId>()
                 .context("The worker id must be a positive integer")?;
-            Worker::spawn(keypair.name, id, committee, parameters, store.clone());
+            Worker::spawn(keypair.name, id, committee, parameters, store);
         }
         _ => unreachable!(),
     }
 
     // Analyze the consensus' output.
-    analyze(store, rx_output).await;
-
+    analyze(rx_output, store_path).await;
     // If this expression is reached, the program ends and all other tasks terminate.
     unreachable!();
 }
 
 /// Receives an ordered list of certificates and apply any application-specific logic.
-async fn analyze(mut store: Store, mut rx_output: Receiver<Certificate>) {
+async fn analyze(mut rx_output: Receiver<Certificate>, store_path: &str) {
     while let Some(_certificate) = rx_output.recv().await {
         // NOTE: Here goes the application logic.
         log::info!("id: {}", _certificate.header.id);
         log::info!("header: {},  payload sz {}", _certificate.header, _certificate.header.payload.len());
+        let opts = rocksdb::Options::default();
+        let secondary_path = "_rust_rocksdb_test_open_as_secondary_secondary";
+        let store_path = ".db-0-0";
+        let secondary = rocksdb::DB::open_as_secondary(&opts, store_path, &secondary_path).unwrap();
+
         for x in _certificate.header.payload.keys() {
             log::info!("keys: {:?} {:?}", x, x.to_vec());
-            let value = store.read(x.to_vec()).await;
-            log::info!("value : {:?}", value);
+            let value = secondary.get(x.to_vec());
+            //log::info!("value : {:?}", value);
             if value.is_err() {
                 log::info!("error: {:?}", value);
                 continue;
@@ -152,12 +156,10 @@ async fn analyze(mut store: Store, mut rx_output: Receiver<Certificate>) {
                 continue;
             }
             let serialized = value.unwrap();
-            let header: Header = bincode::deserialize::<Header>(&serialized).unwrap();
             match bincode::deserialize(&serialized) {
-                Ok(WorkerMessage::Batch(batch)) => log::info!("batch: {:?}", batch[0]),
+                Ok(WorkerMessage::Batch(batch)) => log::info!("batch1: {:?}", batch[0]),
                 _ => log::warn!("Serialization error: {:?}", serialized),
             }
-
         }
     }
 }
