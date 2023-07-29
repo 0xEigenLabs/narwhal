@@ -6,10 +6,10 @@ use config::Import as _;
 use config::{Committee, KeyPair, Parameters, WorkerId};
 use consensus::Consensus;
 use env_logger::Env;
-use primary::{Certificate, Header, Primary};
+use primary::{Certificate, Primary};
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver};
-use worker::{Batch, Worker, WorkerMessage};
+use worker::{Worker, WorkerMessage};
 
 /// The default channel capacity.
 pub const CHANNEL_CAPACITY: usize = 1_000;
