@@ -6,10 +6,10 @@ use config::Import as _;
 use config::{Committee, KeyPair, Parameters, WorkerId};
 use consensus::Consensus;
 use env_logger::Env;
-use primary::{Certificate, Primary, Header};
+use primary::{Certificate, Header, Primary};
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver};
-use worker::{Worker, Batch, WorkerMessage};
+use worker::{Batch, Worker, WorkerMessage};
 
 /// The default channel capacity.
 pub const CHANNEL_CAPACITY: usize = 1_000;
@@ -137,10 +137,14 @@ async fn analyze(mut rx_output: Receiver<Certificate>, store_path: &str) {
     while let Some(_certificate) = rx_output.recv().await {
         // NOTE: Here goes the application logic.
         log::info!("id: {}", _certificate.header.id);
-        log::info!("header: {},  payload sz {}", _certificate.header, _certificate.header.payload.len());
+        log::info!(
+            "header: {},  payload sz {}",
+            _certificate.header,
+            _certificate.header.payload.len()
+        );
         let opts = rocksdb::Options::default();
         let secondary_path = "_rust_rocksdb_test_open_as_secondary_secondary";
-        let store_path = ".db-0-0";
+        let store_path = format!("{}-0", store_path);
         let secondary = rocksdb::DB::open_as_secondary(&opts, store_path, &secondary_path).unwrap();
 
         for x in _certificate.header.payload.keys() {
