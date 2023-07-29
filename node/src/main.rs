@@ -145,7 +145,7 @@ async fn analyze(mut rx_output: Receiver<Certificate>, store_path: &str) {
         let opts = rocksdb::Options::default();
         let secondary_path = "_rust_rocksdb_test_open_as_secondary_secondary";
         let store_path = format!("{}-0", store_path);
-        let secondary = rocksdb::DB::open_as_secondary(&opts, store_path, &secondary_path).unwrap();
+        let secondary = rocksdb::DB::open_as_secondary(&opts, store_path.as_str(), &secondary_path).unwrap();
 
         for x in _certificate.header.payload.keys() {
             log::info!("keys: {:?} {:?}", x, x.to_vec());
