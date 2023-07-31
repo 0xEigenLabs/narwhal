@@ -136,27 +136,21 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
 async fn analyze(mut rx_output: Receiver<Certificate>, store_path: &str) {
     while let Some(_certificate) = rx_output.recv().await {
         // NOTE: Here goes the application logic.
-        log::info!("id: {}", _certificate.header.id);
-        log::info!(
-            "header: {},  payload sz {}",
-            _certificate.header,
-            _certificate.header.payload.len()
-        );
         let opts = rocksdb::Options::default();
-        let secondary_path = "_rust_rocksdb_test_open_as_secondary_secondary";
+        let secondary_path = "_primary_rocksdb_secondary_secondary";
         let store_path = format!("{}-0", store_path);
         let secondary = rocksdb::DB::open_as_secondary(&opts, store_path.as_str(), &secondary_path).unwrap();
 
         for x in _certificate.header.payload.keys() {
-            log::info!("keys: {:?} {:?}", x, x.to_vec());
+            //log::info!("keys: {:?} {:?}", x, x.to_vec());
             let value = secondary.get(x.to_vec());
-            //log::info!("value : {:?}", value);
             if value.is_err() {
-                log::info!("error: {:?}", value);
+                log::info!("rocksdb::get error: {:?} {:?}", x, value);
                 continue;
             }
             let value = value.unwrap();
             if value.is_none() {
+                log::info!("rocksdb::get value is null: {:?}", x);
                 continue;
             }
             let serialized = value.unwrap();
