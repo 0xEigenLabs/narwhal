@@ -139,10 +139,27 @@ async fn analyze(mut rx_output: Receiver<Certificate>, store_path: &str) {
         let opts = rocksdb::Options::default();
         let secondary_path = "_primary_rocksdb_secondary_secondary";
         let store_path = format!("{}-0", store_path);
+        let final_path = format!("{}-final", store_path);
         let secondary = rocksdb::DB::open_as_secondary(&opts, store_path.as_str(), &secondary_path).unwrap();
 
+        // index => tx
+        let final_db = rocksdb::DB::open_default(final_path).unwrap();
+        let bindex = b"latest_index";
+        let mut bvalue: u64 = match final_db.get(bindex) {
+            Ok(x) => {
+                match x {
+                    Some(y) => {
+                        let mut vy = [0u8; 8];
+                        vy.copy_from_slice(&y);
+                        u64::from_le_bytes(vy)
+                    },
+                    _ => 0,
+                }
+            },
+            _ => 0,
+        };
+
         for x in _certificate.header.payload.keys() {
-            //log::info!("keys: {:?} {:?}", x, x.to_vec());
             let value = secondary.get(x.to_vec());
             if value.is_err() {
                 log::info!("rocksdb::get error: {:?} {:?}", x, value);
@@ -155,7 +172,15 @@ async fn analyze(mut rx_output: Receiver<Certificate>, store_path: &str) {
             }
             let serialized = value.unwrap();
             match bincode::deserialize(&serialized) {
-                Ok(WorkerMessage::Batch(batch)) => log::info!("batch1: {:?}", batch[0]),
+                Ok(WorkerMessage::Batch(batch)) => {
+                    batch.into_iter().for_each(|tx| {
+                        bvalue += 1;
+                        log::info!("batch tx: {:?}, index: {}", tx, bvalue);
+                        let index = bvalue.to_le_bytes();
+                        final_db.put(index, tx).unwrap();
+                        final_db.put(bindex, index).unwrap();
+                    })
+                }
                 _ => log::warn!("Serialization error: {:?}", serialized),
             }
         }
