@@ -11,7 +11,5 @@ mod worker;
 #[path = "tests/common.rs"]
 mod common;
 
-pub use crate::batch_maker::Batch;
-pub use crate::batch_maker::Transaction;
 pub use crate::worker::Worker;
 pub use crate::worker::WorkerMessage;
