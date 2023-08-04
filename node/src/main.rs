@@ -177,8 +177,10 @@ async fn analyze(mut rx_output: Receiver<Certificate>, store_path: &str) {
                         bvalue += 1;
                         log::info!("batch tx: {:?}, index: {}", tx, bvalue);
                         let index = bvalue.to_le_bytes();
-                        final_db.put(index, tx).unwrap();
-                        final_db.put(bindex, index).unwrap();
+                        let mut bh = rocksdb::WriteBatch::default();
+                        bh.put(index, tx);
+                        bh.put(bindex, index);
+                        final_db.write(bh).unwrap();
                     })
                 }
                 _ => log::warn!("Serialization error: {:?}", serialized),
